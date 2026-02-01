@@ -1,0 +1,34 @@
+name: FB do GitHub Auto-Sync
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Odpala się co noc o 24:00
+  workflow_dispatch:      # Pozwala Ci odpalić to ręcznie przyciskiem
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kopiowanie repozytorium
+        uses: actions/checkout@v3
+
+      - name: Instalacja Pythona
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Instalacja bibliotek
+        run: pip install requests
+
+      - name: Pobieranie postów
+        env:
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+        run: python fetch_posts.py
+
+      - name: Zapisywanie zmian na GitHub
+        run: |
+          git config --global user.name "AkashaBot"
+          git config --global user.email "bot@github.com"
+          git add POSTY_FACEBOOK.md
+          git commit -m "Automatyczna aktualizacja postów" || exit 0
+          git push
