@@ -1,34 +1,44 @@
-name: FB do GitHub Auto-Sync
+import os
+import requests
+import json
+from datetime import datetime
 
-on:
-  schedule:
-    - cron: '0 0 * * *' # Odpala się co noc o 24:00
-  workflow_dispatch:      # Pozwala Ci odpalić to ręcznie przyciskiem
+# Pobieranie tokenu z poprawioną nazwą (dwa "S")
+TOKEN = os.getenv('FB_PAGE_ACCESS_TOKEN')
+# Twoje ID strony Akasha Chronicles
+PAGE_ID = '15655540376768'
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Kopiowanie repozytorium
-        uses: actions/checkout@v3
+def fetch_fb_posts():
+    # Adres API z Twoim tokenem i ID strony
+    url = f"https://graph.facebook.com/v18.0/{PAGE_ID}/posts?fields=message,created_time,id&access_token={TOKEN}"
+    
+    try:
+        response = requests.get(url)
+        response.raise_for_status() 
+        posts_data = response.json()
 
-      - name: Instalacja Pythona
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
+        # Tworzenie pliku raportu
+        with open('POSTY_FACEBOOK.md', 'w', encoding='utf-8') as f:
+            f.write(f"# Archiwum Postów: Akasha Chronicles\n")
+            
+            # Nowoczesny sposób zapisu daty, idealny pod Linux Mint
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            f.write(f"Ostatnia aktualizacja: {now}\n\n---\n\n")
 
-      - name: Instalacja bibliotek
-        run: pip install requests
+            for post in posts_data.get('data', []):
+                message = post.get('message', 'Post bez tekstu (grafika/link)')
+                date = post.get('created_time', 'Brak daty').replace('T', ' ').split('+')[0]
+                fb_link = f"https://www.facebook.com/{post.get('id')}"
 
-      - name: Pobieranie postów
-        env:
-          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
-        run: python fetch_posts.py
+                f.write(f"### Data: {date}\n")
+                f.write(f"{message}\n\n")
+                f.write(f"[Zobacz post na Facebooku]({fb_link})\n")
+                f.write("---\n\n")
 
-      - name: Zapisywanie zmian na GitHub
-        run: |
-          git config --global user.name "AkashaBot"
-          git config --global user.email "bot@github.com"
-          git add POSTY_FACEBOOK.md
-          git commit -m "Automatyczna aktualizacja postów" || exit 0
-          git push
+        print("Sukces! Plik POSTY_FACEBOOK.md został zaktualizowany.")
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Błąd podczas pobierania danych: {e}")
+
+if _name_ == "_main_":
+    fetch_fb_posts()
