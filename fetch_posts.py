@@ -3,12 +3,13 @@ import requests
 import json
 from datetime import datetime
 
-# Poprawiona nazwa, aby pasowała do Twojego Secretu na GitHubie (z jednym 'S')
-TOKEN = os.getenv('FB_PAGE_ACCES_TOKEN')
+# Pobieranie tokenu z poprawioną nazwą (dwa "S")
+TOKEN = os.getenv('FB_PAGE_ACCESS_TOKEN')
+# Twoje ID strony Akasha Chronicles
 PAGE_ID = '15655540376768'
 
 def fetch_fb_posts():
-    # URL do API Facebooka
+    # Adres API z Twoim tokenem i ID strony
     url = f"https://graph.facebook.com/v18.0/{PAGE_ID}/posts?fields=message,created_time,id&access_token={TOKEN}"
     
     try:
@@ -16,10 +17,11 @@ def fetch_fb_posts():
         response.raise_for_status() 
         posts_data = response.json()
 
+        # Tworzenie pliku raportu
         with open('POSTY_FACEBOOK.md', 'w', encoding='utf-8') as f:
             f.write(f"# Archiwum Postów: Akasha Chronicles\n")
             
-            # Czysty sposób na datę (bez używania os.popen, co jest bezpieczniejsze na Mint)
+            # Nowoczesny sposób zapisu daty, idealny pod Linux Mint
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             f.write(f"Ostatnia aktualizacja: {now}\n\n---\n\n")
 
