@@ -1,44 +1,94 @@
-import os
 import requests
-import json
+import subprocess
+import os
 from datetime import datetime
 
-# Pobieranie tokenu z poprawioną nazwą (dwa "S")
-TOKEN = os.getenv('FB_PAGE_ACCESS_TOKEN')
-# Twoje ID strony Akasha Chronicles
-PAGE_ID = '15655540376768'
+# =======================
+# KONFIGURACJA
+# =======================
 
-def fetch_fb_posts():
-    # Adres API z Twoim tokenem i ID strony
-    url = f"https://graph.facebook.com/v18.0/{PAGE_ID}/posts?fields=message,created_time,id&access_token={TOKEN}"
-    
-    try:
-        response = requests.get(url)
-        response.raise_for_status() 
-        posts_data = response.json()
+ACCESS_TOKEN = os.getenv("FB_PAGE_ACCESS_TOKEN")
+PAGE_ID = "156505540370768"
+FILE_NAME = "facebook_archive.md"
+API_VERSION = "v18.0"
 
-        # Tworzenie pliku raportu
-        with open('POSTY_FACEBOOK.md', 'w', encoding='utf-8') as f:
-            f.write(f"# Archiwum Postów: Akasha Chronicles\n")
-            
-            # Nowoczesny sposób zapisu daty, idealny pod Linux Mint
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f.write(f"Ostatnia aktualizacja: {now}\n\n---\n\n")
+if not ACCESS_TOKEN:
+    raise RuntimeError("Brak FB_PAGE_ACCESS_TOKEN w GitHub Secrets")
 
-            for post in posts_data.get('data', []):
-                message = post.get('message', 'Post bez tekstu (grafika/link)')
-                date = post.get('created_time', 'Brak daty').replace('T', ' ').split('+')[0]
-                fb_link = f"https://www.facebook.com/{post.get('id')}"
+# =======================
+# POBIERANIE POSTÓW
+# =======================
 
-                f.write(f"### Data: {date}\n")
-                f.write(f"{message}\n\n")
-                f.write(f"[Zobacz post na Facebooku]({fb_link})\n")
-                f.write("---\n\n")
+def fetch_posts():
+    url = f"https://graph.facebook.com/{API_VERSION}/{PAGE_ID}/feed"
+    params = {
+        "access_token": ACCESS_TOKEN,
+        "fields": "id,message,created_time,permalink_url"
+    }
 
-        print("Sukces! Plik POSTY_FACEBOOK.md został zaktualizowany.")
-        
-    except requests.exceptions.RequestException as e:
-        print(f"Błąd podczas pobierania danych: {e}")
+    posts = []
+
+    while url:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        posts.extend(data.get("data", []))
+        url = data.get("paging", {}).get("next")
+        params = None
+
+    return posts
+
+# =======================
+# ZAPIS DO MARKDOWN
+# =======================
+
+def save_posts(posts):
+    added = 0
+
+    with open(FILE_NAME, "a", encoding="utf-8") as f:
+        for post in reversed(posts):
+            created = datetime.fromisoformat(
+                post["created_time"].replace("Z", "+00:00")
+            ).strftime("%Y-%m-%d %H:%M")
+
+            message = post.get("message", "[Post bez treści – np. samo zdjęcie]")
+            link = post.get("permalink_url", "")
+
+            f.write(
+                f"### 📌 Post z dnia {created}\n\n"
+                f"{message}\n\n"
+                f"[Link do posta]({link})\n\n"
+                f"---\n\n"
+            )
+
+            added += 1
+
+    return added
+
+# =======================
+# GIT PUSH
+# =======================
+
+def git_push():
+    subprocess.run(["git", "add", FILE_NAME], check=True)
+
+    subprocess.run(
+        ["git", "commit", "-m", f"Auto-update FB (duplikaty): {datetime.now():%Y-%m-%d %H:%M}"],
+        check=True
+    )
+    subprocess.run(["git", "push", "origin", "main"], check=True)
+
+# =======================
+# MAIN
+# =======================
 
 if _name_ == "_main_":
-    fetch_fb_posts()
+    print("➡️ Pobieranie postów z Facebooka...")
+    posts = fetch_posts()
+
+    print(f"📥 Pobrano {len(posts)} postów.")
+    added = save_posts(posts)
+
+    print(f"✅ Dopisano {added} postów (duplikaty dozwolone).")
+    git_push()
